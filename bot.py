@@ -16,7 +16,6 @@
 # dbCursor = MYDB.cursor()
 
 # Bot Token
-# TOKEN = 'MTA5NTc4Njc2ODE1MTg3MTYwOA.GZtycK.g0tihz_6Au6HryQFJ2ZTuDemqvXr0U3Fk0gLno'
 
 # # Discord Bot Intents
 # intents = discord.Intents.default()
@@ -119,7 +118,7 @@ import re
 # # Create a cursor obj for DB
 # dbCursor = MYDB.cursor()
 
-TOKEN = 'MTA5NTc4Njc2ODE1MTg3MTYwOA.GZtycK.g0tihz_6Au6HryQFJ2ZTuDemqvXr0U3Fk0gLno'
+TOKEN = ''
 
 # Registration REGEX
 USERNAME_REGEX = re.compile(r"^[a-zA-Z0-9_]{4,32}$")
