@@ -1,134 +1,28 @@
-# import discord
-# from discord.ext import commands
-# import mysql.connector
-# import re
-# from datetime import datetime
-
-#MaraiDB Connection
-# MYDB = mysql.connector.connect(
-#     host="YourIP",
-#     user="Username",
-#     password="Password",
-#     database="DatabaseName"
-# )
-
-# Create a cursor obj for DB
-# dbCursor = MYDB.cursor()
-
-# Bot Token
-
-# # Discord Bot Intents
-# intents = discord.Intents.default()
-# intents.messages = True
-# intents.message_content = True
-
-# # Init the Discord Client
-# bot = discord.Client(intents=intents)
-
-# @bot.event
-# async def on_ready():
-#     print('We have logged in as {0.user}'.format(bot))
-
-# @bot.event
-# async def on_message(message):
-#     if message.author == bot.user:
-#         return
-
-#     if isinstance(message.channel, discord.channel.DMChannel):
-#         if message.content.startswith('!register'):     
-#             # Check if user is registered first
-#             sql = "SELECT * FROM user WHERE discord_id = %s"
-#             # Discord ID
-#             val = message.author.id
-#             dbCursor.execute(sql, val)
-#             result = dbCursor.fetchone()
-
-#             if result:
-#                 # If registered Inform the user
-#                 await message.author.send('You have already registered.')
-#                 return
-
-#             try:
-#                 # Prompt the user for username
-#                 await message.author.send('Input Username (must be between 4-32 characters, alphanumeric and underscore only):')
-#                 username = await checkUser(await client.wait_for('message', check=lambda m:m.author == message.author and not m.content.isspace() and re.match(USERNAME_REGEX, m.content), timeout=60))
-
-#                 # Password
-#                 await message.author.send('Input Password (must be at least 8 character, at least 1 uppercase letter, 1 special character and no spaces):')
-#                 password = await client.wait_for('message', check=lambda m:m.author == message.author and not m.content.isspace() and re.match(PASSWORD_REGEX, m.content), timeout=60)
-
-#                 # Email
-#                 await message.author.send('Input a Valid Email:')
-#                 email = await client.wait_for('message', check=lambda m:m.author == message.author and not m.content.isspace() and re.match(EMAIL_REGEX, m.content), timeout=60)
-
-#             except asyncio.TimeoutError:
-#                 await message.author.send('Registration timed out. Please try again')
-#                 return
-            
-#             # Get the register time and Discord ID
-#             register_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-#             discord_id = message.author.id
-
-#             # Insert the user into the database
-#             sql = "INSERT INTO registered (username, password, email, time, discord_id) VALUES (%s, %s, %s, %s, %s)"
-#             val = (username.content, password.content, email.content, register_time, discord_id)
-#             dbCursor.execute(sql, val)
-#             MYDB.commit()
-
-#             # Send a confirmation message to the user
-#             await message.author.send('You have been registered! You can now login to the game!')
-
-#  # Check username if its not taken
-# async def checkUser(username):
-#     # Check if the username is taken
-#     sql = "SELECT * FROM registered WHERE username = %s"
-#     val = username.content
-#     dbCursor.execute(sql, val)
-#     result = dbCursor.fetchone()
-
-#     if result:
-#         # If taken inform the user
-#         await message.author.send('This username has already been taken. Please choose a different one:')
-#         try:
-#             new_username = await client.wait_for('message', check=lambda m:m.author == message.author and not m.content.isspace() and re.match(USERNAME_REGEX, m.content), timeout=60)
-#             return await checkUser(new_username.content)
-#         except asyncio.TimeoutError:
-#             await message.author.send('Registration timed out. Please try again')
-#             return
-#     else:
-#         return username.content
-
-# bot.run(TOKEN)
-
-
 import discord
 from discord.ext import commands
 from discord import ui
 import re
-# import mysql.connector
+import mysql.connector
+import os
+from dotenv import load_dotenv
+import requests
 
-# # MariaDB Connection
-# MYDB = mysql.connector.connect(
-#     host="YourIP",
-#     user="Username",
-#     password="Password",
-#     database="DatabaseName"
-# )
-
-# # Create a cursor obj for DB
-# dbCursor = MYDB.cursor()
-
-TOKEN = ''
+load_dotenv()
 
 # Registration REGEX
 USERNAME_REGEX = re.compile(r"^[a-zA-Z0-9_]{4,32}$")
 PASSWORD_REGEX = re.compile(r"^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$")
 EMAIL_REGEX = re.compile(r"^[\w-]+@([\w-]+\.)+[\w-]{2,4}$")
 
+#DB Creds
+HOST=os.getenv('DB_HOST')
+PORT=os.getenv('DB_PORT')
+URL= f'http://{HOST}:{PORT}/'
+
 class Registration(ui.Modal, title='Register to Chaos'):
-    Username = ui.TextInput(label='Username', style=discord.TextStyle.short, placeholder='Username', required=True, min_length=4, max_length=32)
-    Password = ui.TextInput(label='Password', style=discord.TextStyle.short, placeholder='Password', required=True, min_length=8)
-    Email = ui.TextInput(label='E-Mail', style=discord.TextStyle.short, placeholder='Email', required=True, min_length=4)
+    Username = ui.TextInput(label='Username', style=discord.TextStyle.short, placeholder='Username', required=True, min_length=4, max_length=23)
+    Password = ui.TextInput(label='Password', style=discord.TextStyle.short, placeholder='Password', required=True, min_length=8, max_length=32)
+    Email = ui.TextInput(label='E-Mail', style=discord.TextStyle.short, placeholder='Email', required=True, min_length=4, max_length=39)
 
     async def on_submit(self, interaction: discord.Interaction):
         errors = await self.validate_input()
@@ -136,7 +30,20 @@ class Registration(ui.Modal, title='Register to Chaos'):
             response = '\n\n'.join(errors)
             await interaction.response.send_message(response, ephemeral=True);
         else:
-            await interaction.response.send_message(f'Registration Complete!', ephemeral=True)
+            data= {
+                'username': self.Username.value,
+                'password': self.Password.value,
+                'email': self.Email.value,
+                'discord_id': interaction.user.id
+            }
+            result = requests.post(URL+f'register/', json=data)
+            user_data = result.json()
+            if result.status_code == 201:
+                await interaction.response.send_message(f'{user_data["username"]}', ephemeral=True)
+            elif result.status_code == 404:
+                await interaction.response.send_message(f'{user_data["error"]}', ephemeral=True)
+            else:
+                await interaction.response.send_message(f'{user_data["error"]}', ephemeral=True)
 
     async def validate_input(self):
         errors = []
@@ -146,6 +53,8 @@ class Registration(ui.Modal, title='Register to Chaos'):
             errors.append('Password Invalid! Make sure it is at minimum of 8 characters, has no spaces and provide at least 1 Uppercase and 1 Special character(@$!%*#?&).')
         if not EMAIL_REGEX.match(self.Email.value) and not self.Email.value.isspace():
             errors.append('Email Invalid! Make sure it is a valid E-Mail address.')
+        if errors:
+            errors.append('Please use /register again.')
 
         return errors
 
@@ -166,19 +75,18 @@ client = Client()
 @client.tree.command(name='register')
 async def modal(interaction: discord.Interaction):
     # Check if user is registered first
-    sql = "SELECT * FROM user WHERE discord_id = %s"
-    # Discord ID
-    val = interaction.user.id
-    dbCursor.execute(sql, val)
-    result = dbCursor.fetchone()
+    _discord_id = interaction.user.id
+    result = requests.get(URL+f'user/{_discord_id}')
 
-    if result:
+    if result.status_code == 200:
         # If registered Inform the user
-        await interaction.response.send_message(f'You have already been registered.',ephemeral=True)
+        user_data = result.json()
+        await interaction.response.send_message(f'You have already been registered. Your username is {user_data["username"]}.',ephemeral=True)
     else:
         await interaction.response.send_modal(Registration())
 
-client.run(TOKEN)
+token = os.getenv('TOKEN')
+client.run(token)
 
 
 
